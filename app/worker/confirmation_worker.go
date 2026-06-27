@@ -108,7 +108,7 @@ func (w *ConfirmationWorker) processBooking(ctx context.Context, booking *models
 		logger.Info("бронирование подтверждено через polling")
 
 	case "denied":
-		if err := w.service.Cancel(ctx, bookingID); err != nil {
+		if err := w.service.CancelDueToDenial(ctx, bookingID); err != nil {
 			logger.Error("ошибка отмены бронирования", zap.Error(err))
 			return
 		}
