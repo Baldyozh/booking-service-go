@@ -57,27 +57,30 @@ func TestConfirm_FromConfirmed_Error(t *testing.T) {
 	assert.ErrorIs(t, err, models.ErrInvalidStatusTransition)
 }
 
-func TestCancel_FromAwaitsConfirmation(t *testing.T) {
+func TestBeginCancellation_FromAwaitsConfirmation(t *testing.T) {
 	booking := createTestBooking(t)
 
-	err := booking.Cancel(time.Now())
+	err := booking.BeginCancellation(time.Now())
 
 	require.NoError(t, err)
-	assert.Equal(t, models.BookingStatusCancelled, booking.Status())
+	assert.Equal(t, models.BookingStatusCancellationPending, booking.Status())
+	assert.Equal(t, models.BookingStatusAwaitsConfirmation, booking.PreviousStatus())
+	assert.False(t, booking.CancelCommandSentAt().IsZero())
 }
 
-func TestCancel_FromConfirmed_FutureStartDate(t *testing.T) {
+func TestBeginCancellation_FromConfirmed_FutureStartDate(t *testing.T) {
 	booking := createTestBooking(t)
 	_ = booking.Confirm()
 	today := time.Now()
 
-	err := booking.Cancel(today)
+	err := booking.BeginCancellation(today)
 
 	require.NoError(t, err)
-	assert.Equal(t, models.BookingStatusCancelled, booking.Status())
+	assert.Equal(t, models.BookingStatusCancellationPending, booking.Status())
+	assert.Equal(t, models.BookingStatusConfirmed, booking.PreviousStatus())
 }
 
-func TestCancel_FromConfirmed_PastStartDate_Error(t *testing.T) {
+func TestBeginCancellation_FromConfirmed_PastStartDate_Error(t *testing.T) {
 	b := models.RestoreBooking(
 		1,
 		models.BookingStatusConfirmed,
@@ -85,18 +88,91 @@ func TestCancel_FromConfirmed_PastStartDate_Error(t *testing.T) {
 		time.Now().AddDate(0, 0, -3),
 		time.Now().AddDate(0, 0, -1),
 		time.Now().AddDate(0, 0, -5),
+		"", time.Time{},
 	)
 
-	err := b.Cancel(time.Now())
+	err := b.BeginCancellation(time.Now())
 
 	assert.ErrorIs(t, err, models.ErrCannotCancelPastBooking)
 }
 
-func TestCancel_FromCancelled_Error(t *testing.T) {
+func TestBeginCancellation_FromCancellationPending_Error(t *testing.T) {
 	booking := createTestBooking(t)
-	_ = booking.Cancel(time.Now())
+	_ = booking.BeginCancellation(time.Now())
 
-	err := booking.Cancel(time.Now())
+	err := booking.BeginCancellation(time.Now())
+
+	assert.ErrorIs(t, err, models.ErrInvalidStatusTransition)
+}
+
+func TestCompleteCancellation_FromPending(t *testing.T) {
+	booking := createTestBooking(t)
+	_ = booking.BeginCancellation(time.Now())
+
+	err := booking.CompleteCancellation()
+
+	require.NoError(t, err)
+	assert.Equal(t, models.BookingStatusCancelled, booking.Status())
+	assert.Empty(t, booking.PreviousStatus())
+	assert.True(t, booking.CancelCommandSentAt().IsZero())
+}
+
+func TestCompleteCancellation_FromConfirmed_Error(t *testing.T) {
+	booking := createTestBooking(t)
+	_ = booking.Confirm()
+
+	err := booking.CompleteCancellation()
+
+	assert.ErrorIs(t, err, models.ErrInvalidStatusTransition)
+}
+
+func TestRollbackCancellation_RestoresAwaitsConfirmation(t *testing.T) {
+	booking := createTestBooking(t)
+	_ = booking.BeginCancellation(time.Now())
+
+	err := booking.RollbackCancellation()
+
+	require.NoError(t, err)
+	assert.Equal(t, models.BookingStatusAwaitsConfirmation, booking.Status())
+	assert.Empty(t, booking.PreviousStatus())
+	assert.True(t, booking.CancelCommandSentAt().IsZero())
+}
+
+func TestRollbackCancellation_RestoresConfirmed(t *testing.T) {
+	booking := createTestBooking(t)
+	_ = booking.Confirm()
+	_ = booking.BeginCancellation(time.Now())
+
+	err := booking.RollbackCancellation()
+
+	require.NoError(t, err)
+	assert.Equal(t, models.BookingStatusConfirmed, booking.Status())
+}
+
+func TestRollbackCancellation_FromCancelled_Error(t *testing.T) {
+	booking := createTestBooking(t)
+	_ = booking.BeginCancellation(time.Now())
+	_ = booking.CompleteCancellation()
+
+	err := booking.RollbackCancellation()
+
+	assert.ErrorIs(t, err, models.ErrInvalidStatusTransition)
+}
+
+func TestCancelAsDenied_FromAwaitsConfirmation(t *testing.T) {
+	booking := createTestBooking(t)
+
+	err := booking.CancelAsDenied()
+
+	require.NoError(t, err)
+	assert.Equal(t, models.BookingStatusCancelled, booking.Status())
+}
+
+func TestCancelAsDenied_FromConfirmed_Error(t *testing.T) {
+	booking := createTestBooking(t)
+	_ = booking.Confirm()
+
+	err := booking.CancelAsDenied()
 
 	assert.ErrorIs(t, err, models.ErrInvalidStatusTransition)
 }
