@@ -44,4 +44,39 @@ const (
 		ORDER BY created_at ASC
 		LIMIT $1
 		FOR UPDATE SKIP LOCKED`
+
+	// Фильтр по created_at: dateFrom и dateTo включительно (dateTo + 1 день как верхняя граница).
+	statisticsDateFilter = `
+		created_at >= $1::date
+		AND created_at < ($2::date + INTERVAL '1 day')`
+
+	queryCountBookingsInPeriod = `
+		SELECT COUNT(*)
+		FROM bookings
+		WHERE ` + statisticsDateFilter
+
+	queryCountBookingsByStatusInPeriod = `
+		SELECT s.status, COALESCE(c.cnt, 0)
+		FROM (
+			VALUES
+				('awaits_confirmation'),
+				('confirmed'),
+				('cancelled'),
+				('cancellation_pending')
+		) AS s(status)
+		LEFT JOIN (
+			SELECT status, COUNT(*) AS cnt
+			FROM bookings
+			WHERE ` + statisticsDateFilter + `
+			GROUP BY status
+		) AS c ON c.status = s.status
+		ORDER BY s.status`
+
+	queryTopResourcesInPeriod = `
+		SELECT resource_id, COUNT(*) AS booking_count
+		FROM bookings
+		WHERE ` + statisticsDateFilter + `
+		GROUP BY resource_id
+		ORDER BY booking_count DESC, resource_id ASC
+		LIMIT 5`
 )

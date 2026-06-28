@@ -52,6 +52,60 @@ func (r *BookingsRepository) GetByID(ctx context.Context, id int64) (*models.Boo
 	return booking, nil
 }
 
+// GetStatistics возвращает агрегированную статистику за период (все вычисления в SQL).
+func (r *BookingsRepository) GetStatistics(ctx context.Context, period models.StatisticsPeriod) (models.BookingStatistics, error) {
+	dateFrom := period.DateFrom
+	dateTo := period.DateTo
+
+	var total int64
+	if err := r.pool.QueryRow(ctx, queryCountBookingsInPeriod, dateFrom, dateTo).Scan(&total); err != nil {
+		return models.BookingStatistics{}, fmt.Errorf("подсчёт бронирований за период: %w", err)
+	}
+
+	byStatus := make(map[models.BookingStatus]int64)
+	rows, err := r.pool.Query(ctx, queryCountBookingsByStatusInPeriod, dateFrom, dateTo)
+	if err != nil {
+		return models.BookingStatistics{}, fmt.Errorf("подсчёт по статусам: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var status string
+		var count int64
+		if err := rows.Scan(&status, &count); err != nil {
+			return models.BookingStatistics{}, fmt.Errorf("сканирование статуса: %w", err)
+		}
+		byStatus[models.BookingStatus(status)] = count
+	}
+	if err := rows.Err(); err != nil {
+		return models.BookingStatistics{}, fmt.Errorf("итерация по статусам: %w", err)
+	}
+
+	topRows, err := r.pool.Query(ctx, queryTopResourcesInPeriod, dateFrom, dateTo)
+	if err != nil {
+		return models.BookingStatistics{}, fmt.Errorf("топ ресурсов: %w", err)
+	}
+	defer topRows.Close()
+
+	topResources := make([]models.ResourceStatistics, 0)
+	for topRows.Next() {
+		var rs models.ResourceStatistics
+		if err := topRows.Scan(&rs.ResourceID, &rs.BookingCount); err != nil {
+			return models.BookingStatistics{}, fmt.Errorf("сканирование топ ресурсов: %w", err)
+		}
+		topResources = append(topResources, rs)
+	}
+	if err := topRows.Err(); err != nil {
+		return models.BookingStatistics{}, fmt.Errorf("итерация по топ ресурсов: %w", err)
+	}
+
+	return models.BookingStatistics{
+		TotalBookings: total,
+		ByStatus:      byStatus,
+		TopResources:  topResources,
+	}, nil
+}
+
 // Update обновляет бронирование в хранилище.
 func (r *BookingsRepository) Update(ctx context.Context, booking *models.Booking) error {
 	tag, err := r.pool.Exec(ctx, queryUpdateBooking,
