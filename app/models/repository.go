@@ -19,6 +19,9 @@ type BookingRepository interface {
 	// GetAwaitingConfirmation возвращает бронирования в статусе AwaitsConfirmation
 	// с пессимистичной блокировкой (SELECT ... FOR UPDATE SKIP LOCKED).
 	GetAwaitingConfirmation(ctx context.Context, limit int) ([]Booking, error)
+
+	// GetStatistics возвращает агрегированную статистику за период (SQL-агрегации).
+	GetStatistics(ctx context.Context, period StatisticsPeriod) (BookingStatistics, error)
 }
 
 // BookingFilter содержит параметры фильтрации и пагинации.

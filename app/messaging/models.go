@@ -41,16 +41,34 @@ type BookingJobDenied struct {
 	Reason    string `json:"Reason"`
 }
 
+// BookingJobCancelled -- событие успешной отмены задания от Catalog.
+type BookingJobCancelled struct {
+	EventId   string `json:"EventId"`
+	Id        int64  `json:"Id"`
+	RequestId string `json:"RequestId"` // BookingID в формате UUID
+}
+
+// CancelBookingJobError -- событие ошибки обработки команды отмены (DLQ).
+type CancelBookingJobError struct {
+	EventId   string `json:"EventId"`
+	RequestId string `json:"RequestId"` // BookingID в формате UUID
+	Reason    string `json:"Reason"`
+}
+
 // Routing keys для входящих событий от Catalog (consumer side, Rebus convention).
 const (
-	RoutingKeyBookingJobConfirmed = "BookingService.Catalog.Async.Api.Contracts.Events.BookingJobConfirmed, BookingService.Catalog.Async.Api.Contracts"
-	RoutingKeyBookingJobDenied    = "BookingService.Catalog.Async.Api.Contracts.Events.BookingJobDenied, BookingService.Catalog.Async.Api.Contracts"
+	RoutingKeyBookingJobConfirmed    = "BookingService.Catalog.Async.Api.Contracts.Events.BookingJobConfirmed, BookingService.Catalog.Async.Api.Contracts"
+	RoutingKeyBookingJobDenied       = "BookingService.Catalog.Async.Api.Contracts.Events.BookingJobDenied, BookingService.Catalog.Async.Api.Contracts"
+	RoutingKeyBookingJobCancelled    = "BookingService.Catalog.Async.Api.Contracts.Events.BookingJobCancelled, BookingService.Catalog.Async.Api.Contracts"
+	RoutingKeyCancelBookingJobError  = "BookingService.Catalog.Async.Api.Contracts.Events.CancelBookingJobError, BookingService.Catalog.Async.Api.Contracts"
 )
 
 // QueueSuffixes для входящих событий — читаемые имена суффиксов очередей.
 const (
-	QueueSuffixBookingJobConfirmed = "booking-job.confirmed"
-	QueueSuffixBookingJobDenied    = "booking-job.denied"
+	QueueSuffixBookingJobConfirmed   = "booking-job.confirmed"
+	QueueSuffixBookingJobDenied      = "booking-job.denied"
+	QueueSuffixBookingJobCancelled   = "booking-job.cancelled"
+	QueueSuffixCancelBookingJobError = "booking-job.cancel-error"
 )
 
 // Routing keys и типы для исходящих команд в Catalog (publisher side, Rebus convention).

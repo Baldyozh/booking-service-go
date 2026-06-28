@@ -24,6 +24,7 @@ func NewRouter(bookingsHandler *handler.BookingsHandler) chi.Router {
 	r.Route("/api/bookings", func(r chi.Router) {
 		r.Post("/create", bookingsHandler.Create)         // POST api/bookings/create
 		r.Post("/by-filter", bookingsHandler.GetByFilter) // POST api/bookings/by-filter
+		r.Get("/statistics", bookingsHandler.GetStatistics) // GET  api/bookings/statistics
 		r.Get("/{id}", bookingsHandler.GetByID)           // GET  api/bookings/{id}
 		r.Put("/{id}/cancel", bookingsHandler.Cancel)     // PUT  api/bookings/{id}/cancel
 		r.Get("/{id}/status", bookingsHandler.GetStatus)  // GET  api/bookings/{id}/status

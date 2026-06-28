@@ -153,6 +153,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
 
+  /api/bookings/statistics:
+    get:
+      summary: Статистика по бронированиям за период
+      operationId: getBookingStatistics
+      tags:
+        - Bookings
+      parameters:
+        - name: dateFrom
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Начало периода (YYYY-MM-DD, включительно)
+          example: "2026-01-01"
+        - name: dateTo
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Конец периода (YYYY-MM-DD, включительно)
+          example: "2026-01-31"
+      responses:
+        "200":
+          description: Агрегированная статистика
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingStatisticsResponse"
+        "400":
+          description: Ошибка валидации
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
   /api/bookings/{id}/status:
     get:
       summary: Получение статуса бронирования по ID
@@ -239,6 +282,7 @@ components:
             - awaits_confirmation
             - confirmed
             - cancelled
+            - cancellation_pending
           example: awaits_confirmation
         userId:
           type: integer
@@ -270,7 +314,42 @@ components:
             - awaits_confirmation
             - confirmed
             - cancelled
+            - cancellation_pending
           example: confirmed
+
+    BookingStatisticsResponse:
+      type: object
+      properties:
+        totalBookings:
+          type: integer
+          format: int64
+          example: 42
+        byStatus:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+          example:
+            awaits_confirmation: 10
+            confirmed: 20
+            cancelled: 10
+            cancellation_pending: 2
+        topResources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceStatisticsResponse"
+
+    ResourceStatisticsResponse:
+      type: object
+      properties:
+        resourceId:
+          type: integer
+          format: int64
+          example: 10
+        bookingCount:
+          type: integer
+          format: int64
+          example: 15
 
     GetBookingsByFilterRequest:
       type: object
@@ -292,6 +371,7 @@ components:
             - awaits_confirmation
             - confirmed
             - cancelled
+            - cancellation_pending
         page:
           type: integer
           default: 1
