@@ -45,6 +45,17 @@ const (
 		LIMIT $1
 		FOR UPDATE SKIP LOCKED`
 
+	queryGetStuckCancellations = `
+		SELECT id, status, user_id, resource_id, start_date, end_date, created_at,
+		       previous_status, cancel_command_sent_at
+		FROM bookings
+		WHERE status = 'cancellation_pending'
+		  AND cancel_command_sent_at IS NOT NULL
+		  AND cancel_command_sent_at < $1
+		ORDER BY cancel_command_sent_at ASC
+		LIMIT $2
+		FOR UPDATE SKIP LOCKED`
+
 	// Фильтр по created_at: dateFrom и dateTo включительно (dateTo + 1 день как верхняя граница).
 	statisticsDateFilter = `
 		created_at >= $1::date

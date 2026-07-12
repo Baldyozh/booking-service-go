@@ -186,22 +186,23 @@ func (s *BookingsService) CancelDueToDenial(ctx context.Context, id int64) error
 }
 
 // Confirm подтверждает бронирование по ID.
-// Используется обработчиком событий RabbitMQ.
-func (s *BookingsService) Confirm(ctx context.Context, id int64) error {
+// Возвращает true, если подтверждение разрешило race condition с ожидающей отменой.
+func (s *BookingsService) Confirm(ctx context.Context, id int64) (bool, error) {
 	booking, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	if err := booking.Confirm(); err != nil {
-		return err
+	raceResolved, err := booking.Confirm()
+	if err != nil {
+		return false, err
 	}
 
 	if err := s.repo.Update(ctx, booking); err != nil {
-		return fmt.Errorf("обновление бронирования: %w", err)
+		return false, fmt.Errorf("обновление бронирования: %w", err)
 	}
 
 	s.logger.Info("бронирование подтверждено", zap.Int64("id", id))
 
-	return nil
+	return raceResolved, nil
 }

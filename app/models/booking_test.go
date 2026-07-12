@@ -11,16 +11,13 @@ import (
 )
 
 func TestNewBooking_Success(t *testing.T) {
-	// Arrange
 	userID := int64(1)
 	resourceID := int64(10)
 	startDate := time.Now().AddDate(0, 0, 7)
 	endDate := time.Now().AddDate(0, 0, 14)
 
-	// Act
 	booking, err := models.NewBooking(userID, resourceID, startDate, endDate)
 
-	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, models.BookingStatusAwaitsConfirmation, booking.Status())
 	assert.Equal(t, userID, booking.UserID())
@@ -42,17 +39,31 @@ func TestNewBooking_EndDateBeforeStartDate(t *testing.T) {
 func TestConfirm_FromAwaitsConfirmation(t *testing.T) {
 	booking := createTestBooking(t)
 
-	err := booking.Confirm()
+	raceResolved, err := booking.Confirm()
 
 	require.NoError(t, err)
+	assert.False(t, raceResolved)
 	assert.Equal(t, models.BookingStatusConfirmed, booking.Status())
+}
+
+func TestConfirm_FromCancellationPending_RaceCondition(t *testing.T) {
+	booking := createTestBooking(t)
+	_ = booking.BeginCancellation(time.Now())
+
+	raceResolved, err := booking.Confirm()
+
+	require.NoError(t, err)
+	assert.True(t, raceResolved)
+	assert.Equal(t, models.BookingStatusConfirmed, booking.Status())
+	assert.Empty(t, booking.PreviousStatus())
+	assert.True(t, booking.CancelCommandSentAt().IsZero())
 }
 
 func TestConfirm_FromConfirmed_Error(t *testing.T) {
 	booking := createTestBooking(t)
-	_ = booking.Confirm()
+	_, _ = booking.Confirm()
 
-	err := booking.Confirm()
+	_, err := booking.Confirm()
 
 	assert.ErrorIs(t, err, models.ErrInvalidStatusTransition)
 }
@@ -70,7 +81,7 @@ func TestBeginCancellation_FromAwaitsConfirmation(t *testing.T) {
 
 func TestBeginCancellation_FromConfirmed_FutureStartDate(t *testing.T) {
 	booking := createTestBooking(t)
-	_ = booking.Confirm()
+	_, _ = booking.Confirm()
 	today := time.Now()
 
 	err := booking.BeginCancellation(today)
@@ -119,7 +130,7 @@ func TestCompleteCancellation_FromPending(t *testing.T) {
 
 func TestCompleteCancellation_FromConfirmed_Error(t *testing.T) {
 	booking := createTestBooking(t)
-	_ = booking.Confirm()
+	_, _ = booking.Confirm()
 
 	err := booking.CompleteCancellation()
 
@@ -140,7 +151,7 @@ func TestRollbackCancellation_RestoresAwaitsConfirmation(t *testing.T) {
 
 func TestRollbackCancellation_RestoresConfirmed(t *testing.T) {
 	booking := createTestBooking(t)
-	_ = booking.Confirm()
+	_, _ = booking.Confirm()
 	_ = booking.BeginCancellation(time.Now())
 
 	err := booking.RollbackCancellation()
@@ -170,7 +181,7 @@ func TestCancelAsDenied_FromAwaitsConfirmation(t *testing.T) {
 
 func TestCancelAsDenied_FromConfirmed_Error(t *testing.T) {
 	booking := createTestBooking(t)
-	_ = booking.Confirm()
+	_, _ = booking.Confirm()
 
 	err := booking.CancelAsDenied()
 

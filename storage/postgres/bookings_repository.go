@@ -191,6 +191,27 @@ func (r *BookingsRepository) GetAwaitingConfirmation(ctx context.Context, limit 
 	return bookings, rows.Err()
 }
 
+// GetStuckCancellations возвращает бронирования в cancellation_pending,
+// у которых команда отмены была отправлена раньше указанного порога.
+func (r *BookingsRepository) GetStuckCancellations(ctx context.Context, sentBefore time.Time, limit int) ([]models.Booking, error) {
+	rows, err := r.pool.Query(ctx, queryGetStuckCancellations, sentBefore, limit)
+	if err != nil {
+		return nil, fmt.Errorf("получение зависших отмен: %w", err)
+	}
+	defer rows.Close()
+
+	var bookings []models.Booking
+	for rows.Next() {
+		booking, err := r.scanBookingFromRows(rows)
+		if err != nil {
+			return nil, fmt.Errorf("сканирование бронирования: %w", err)
+		}
+		bookings = append(bookings, *booking)
+	}
+
+	return bookings, rows.Err()
+}
+
 // scanBooking сканирует одну строку в доменный объект Booking.
 func (r *BookingsRepository) scanBooking(row pgx.Row) (*models.Booking, error) {
 	return scanBookingRow(row)

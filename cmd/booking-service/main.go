@@ -20,6 +20,7 @@ import (
 	"booking-service/app/messaging"
 	"booking-service/app/messaging/handlers"
 	"booking-service/app/service"
+	"booking-service/app/worker"
 	pgstore "booking-service/storage/postgres"
 )
 
@@ -98,6 +99,16 @@ func main() {
 		logger.Error("не удалось запустить consumer", zap.Error(err))
 		os.Exit(1)
 	}
+
+	stuckCancellationWorker := worker.NewStuckCancellationWorker(
+		repo,
+		publisher,
+		cfg.Worker.StuckCancellationInterval,
+		cfg.Worker.StuckCancellationTimeout,
+		cfg.Worker.StuckCancellationBatch,
+		logger,
+	)
+	go stuckCancellationWorker.Run(ctx)
 
 	// HTTP-хендлеры и роутер
 	bookingsHandler := handler.NewBookingsHandler(bookingsService, bookingsQueries, logger)

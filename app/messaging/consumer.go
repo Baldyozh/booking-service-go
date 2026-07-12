@@ -44,7 +44,7 @@ func (c *Consumer) Subscribe(queueSuffix, routingKey string, handler MessageHand
 	c.subscriptions[queueSuffix] = subscription{routingKey: routingKey, handler: handler}
 }
 
-// Start запускает потребление сообщений. Блокирует до отмены контекста.
+// Start запускает потребление сообщений. Блокирует до отмены контекста
 func (c *Consumer) Start(ctx context.Context) error {
 	// Объявление exchange
 	if err := c.conn.DeclareExchange(c.exchangeName); err != nil {
