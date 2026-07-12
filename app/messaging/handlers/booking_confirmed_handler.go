@@ -42,8 +42,16 @@ func (h *BookingConfirmedHandler) Handle(ctx context.Context, body []byte) error
 		zap.Int64("catalogJobId", event.Id),
 	)
 
-	if err := h.service.Confirm(ctx, bookingID); err != nil {
+	raceResolved, err := h.service.Confirm(ctx, bookingID)
+	if err != nil {
 		return fmt.Errorf("подтверждение бронирования %d: %w", bookingID, err)
+	}
+
+	if raceResolved {
+		h.logger.Warn("обнаружен race condition: Catalog подтвердил бронирование во время отмены",
+			zap.Int64("bookingId", bookingID),
+			zap.Int64("catalogJobId", event.Id),
+		)
 	}
 
 	h.logger.Info("бронирование подтверждено через событие", zap.Int64("bookingId", bookingID))

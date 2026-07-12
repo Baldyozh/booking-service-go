@@ -20,6 +20,7 @@ import (
 	"booking-service/app/messaging"
 	"booking-service/app/messaging/handlers"
 	"booking-service/app/service"
+	"booking-service/app/worker"
 	pgstore "booking-service/storage/postgres"
 )
 
@@ -80,6 +81,8 @@ func main() {
 	// Хендлеры событий RabbitMQ
 	confirmedHandler := handlers.NewBookingConfirmedHandler(bookingsService, logger)
 	deniedHandler := handlers.NewBookingDeniedHandler(bookingsService, logger)
+	cancelledHandler := handlers.NewBookingCancelledHandler(bookingsService, logger)
+	cancelErrorHandler := handlers.NewCancelBookingErrorHandler(bookingsService, logger)
 
 	// Контекст для graceful shutdown фоновых задач
 	ctx, cancel := context.WithCancel(context.Background())
@@ -89,11 +92,23 @@ func main() {
 	consumer := messaging.NewConsumer(mqConn, cfg.RabbitMQ.ExchangeName, cfg.RabbitMQ.QueuePrefix, logger)
 	consumer.Subscribe(messaging.QueueSuffixBookingJobConfirmed, messaging.RoutingKeyBookingJobConfirmed, confirmedHandler.Handle)
 	consumer.Subscribe(messaging.QueueSuffixBookingJobDenied, messaging.RoutingKeyBookingJobDenied, deniedHandler.Handle)
+	consumer.Subscribe(messaging.QueueSuffixBookingJobCancelled, messaging.RoutingKeyBookingJobCancelled, cancelledHandler.Handle)
+	consumer.Subscribe(messaging.QueueSuffixCancelBookingJobError, messaging.RoutingKeyCancelBookingJobError, cancelErrorHandler.Handle)
 
 	if err := consumer.Start(ctx); err != nil {
 		logger.Error("не удалось запустить consumer", zap.Error(err))
 		os.Exit(1)
 	}
+
+	stuckCancellationWorker := worker.NewStuckCancellationWorker(
+		repo,
+		publisher,
+		cfg.Worker.StuckCancellationInterval,
+		cfg.Worker.StuckCancellationTimeout,
+		cfg.Worker.StuckCancellationBatch,
+		logger,
+	)
+	go stuckCancellationWorker.Run(ctx)
 
 	// HTTP-хендлеры и роутер
 	bookingsHandler := handler.NewBookingsHandler(bookingsService, bookingsQueries, logger)

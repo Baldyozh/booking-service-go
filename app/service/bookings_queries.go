@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -82,6 +83,35 @@ func (q *BookingsQueries) GetByFilter(ctx context.Context, req dto.GetBookingsBy
 		TotalCount: totalCount,
 		Page:       filter.Page,
 		Size:       filter.Size,
+	}, nil
+}
+
+func (q *BookingsQueries) GetStatistics(ctx context.Context, dateFrom, dateTo time.Time) (dto.BookingStatisticsResponse, error) {
+	stats, err := q.repo.GetStatistics(ctx, models.StatisticsPeriod{
+		DateFrom: dateFrom,
+		DateTo:   dateTo,
+	})
+	if err != nil {
+		return dto.BookingStatisticsResponse{}, fmt.Errorf("получение статистики: %w", err)
+	}
+
+	byStatus := make(map[string]int64, len(stats.ByStatus))
+	for status, count := range stats.ByStatus {
+		byStatus[string(status)] = count
+	}
+
+	topResources := make([]dto.ResourceStatisticsResponse, 0, len(stats.TopResources))
+	for _, r := range stats.TopResources {
+		topResources = append(topResources, dto.ResourceStatisticsResponse{
+			ResourceID:   r.ResourceID,
+			BookingCount: r.BookingCount,
+		})
+	}
+
+	return dto.BookingStatisticsResponse{
+		TotalBookings: stats.TotalBookings,
+		ByStatus:      byStatus,
+		TopResources:  topResources,
 	}, nil
 }
 
